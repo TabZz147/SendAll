@@ -17,15 +17,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class SendAll extends Plugin {
 
-    private int batchSize = 5;             // Spieler pro Schub
-    private long delayMs = 1000;           // Zeit zwischen Schüben (Millisekunden)
-    private boolean skipIfAlreadyThere = true; // Spieler auf Zielserver überspringen
+    private int batchSize = 5;
+    private long delayMs = 1000;
+    private boolean skipIfAlreadyThere = true;
 
     @Override
     public void onEnable() {
         loadConfig();
 
-        // /sendall <server>  |  /sendall reload
         getProxy().getPluginManager().registerCommand(this,
                 new Command("sendall", "manacity.sendall", "sendtoall") {
                     @Override
@@ -36,35 +35,50 @@ public class SendAll extends Plugin {
                             return;
                         }
 
-                        if (args.length < 1) {
-                            sender.sendMessage("§cBenutzung: /sendall <server>  oder  /sendall reload");
+                        if (args.length < 2) {
+                            sender.sendMessage("§cBenutzung: /sendall <vonServer> <zuServer>");
+                            sender.sendMessage("§7Oder: /sendall reload");
                             return;
                         }
 
-                        String target = args[0];
-                        var server = ProxyServer.getInstance().getServerInfo(target);
-                        if (server == null) {
-                            sender.sendMessage("§cServer '" + target + "' nicht gefunden!");
+                        String from = args[0];
+                        String to = args[1];
+
+                        var fromServer = ProxyServer.getInstance().getServerInfo(from);
+                        var toServer = ProxyServer.getInstance().getServerInfo(to);
+
+                        if (fromServer == null) {
+                            sender.sendMessage("§cServer '" + from + "' nicht gefunden!");
+                            return;
+                        }
+                        if (toServer == null) {
+                            sender.sendMessage("§cServer '" + to + "' nicht gefunden!");
                             return;
                         }
 
-                        List<ProxiedPlayer> players = new ArrayList<>(ProxyServer.getInstance().getPlayers());
-                        if (skipIfAlreadyThere) {
-                            players.removeIf(p -> p.getServer() != null
-                                    && p.getServer().getInfo().getName().equalsIgnoreCase(target));
+                        // Alle Spieler vom Source-Server holen
+                        List<ProxiedPlayer> players = new ArrayList<>();
+                        for (ProxiedPlayer p : ProxyServer.getInstance().getPlayers()) {
+                            if (p.getServer() != null &&
+                                p.getServer().getInfo().getName().equalsIgnoreCase(from)) {
+                                if (skipIfAlreadyThere &&
+                                    to.equalsIgnoreCase(p.getServer().getInfo().getName()))
+                                    continue;
+                                players.add(p);
+                            }
                         }
 
                         if (players.isEmpty()) {
-                            sender.sendMessage("§eKeine Spieler zu verschieben.");
+                            sender.sendMessage("§eKeine Spieler auf §b" + from + " §ezu verschieben.");
                             return;
                         }
 
-                        sender.sendMessage("§aSende §e" + players.size() + "§a Spieler nach §b" + target
-                                + "§a (Batch=" + batchSize + ", Delay=" + delayMs + "ms)…");
+                        sender.sendMessage("§aVerschiebe §e" + players.size() +
+                                "§a Spieler von §b" + from + " §anach §b" + to +
+                                "§a (Batch=" + batchSize + ", Delay=" + delayMs + "ms)…");
 
                         Iterator<ProxiedPlayer> it = players.iterator();
 
-                        // ScheduledTask-Referenz speichern, damit wir korrekt canceln können
                         AtomicReference<ScheduledTask> ref = new AtomicReference<>();
                         ScheduledTask task = ProxyServer.getInstance().getScheduler().schedule(
                                 SendAll.this,
@@ -72,11 +86,10 @@ public class SendAll extends Plugin {
                                     int sent = 0;
                                     while (sent < batchSize && it.hasNext()) {
                                         ProxiedPlayer p = it.next();
-                                        p.connect(server);
+                                        p.connect(toServer);
                                         sent++;
                                     }
                                     if (!it.hasNext()) {
-                                        // Task sauber beenden
                                         ScheduledTask t = ref.get();
                                         if (t != null) t.cancel();
                                         sender.sendMessage("§a[SendAll] Alle Spieler wurden erfolgreich verschoben!");
