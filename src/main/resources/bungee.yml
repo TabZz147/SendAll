@@ -1,0 +1,16 @@
+name: SendAll
+main: de.manacity.sendall.SendAll
+version: 1.0
+author: ManaCity
+description: Verschiebt alle Spieler vom Proxy auf einen angegebenen Zielserver mit Delay und Batch-System.
+
+commands:
+  sendall:
+    description: Sendet alle Spieler auf einen bestimmten Server oder lädt die Config neu.
+    usage: /sendall <server> | /sendall reload
+    permission: manacity.sendall
+
+permissions:
+  manacity.sendall:
+    description: Erlaubt Zugriff auf den Befehl /sendall
+    default: OP
